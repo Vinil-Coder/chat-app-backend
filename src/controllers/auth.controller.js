@@ -3,6 +3,7 @@ const User = require("../models/user.model");
 const Profile = require("../models/profile.model");
 const Account = require("../models/account.model");
 const Session = require("../models/session.model");
+const UAParser = require("ua-parser-js");
 
 const { decryptyPassword, encryptPassword } = require("../utils/password-encrypted");
 
@@ -38,36 +39,47 @@ const loginUser = async (req, res) => {
         const passwordVerified = await decryptyPassword(password, user.password);
         if (!passwordVerified) return res.status(400).json({ message: "Invalid password", sucess: false });
 
-        const token = generateToken({ id: user._id, name: user.name, email: user.email });
-        const refreshToken = generateRefreshToken({ id: user._id, name: user.name, email: user.email });
-        
-        await Session.create(
-            { 
-                userID: user._id, 
-                userAgent: req.headers["user-agent"], 
-                refreshToken, 
-                ipAddress: req.ip,
-                device: req.headers["device"]
+        const parser = new UAParser(req.headers["user-agent"]).getResult();
+
+        const session = await Session.create(
+            {
+                userID: user._id,
+                userAgent: req.headers["user-agent"],
+                device: `${parser.browser.name} on ${parser.os.name}`,
+                ipAddress: req.headers["x-forwarded-for"]?.split(",")[0] || req.socket.remoteAddress || req.ip
             });
 
-        res.status(200).json({ token, refreshToken, user, sucess: true });
+        const token = generateToken({ id: user._id, name: user.name, email: user.email, sessionID: session._id });
+        const refreshToken = generateRefreshToken({ id: user._id, name: user.name, email: user.email, sessionID: session._id });
+
+        await Session.findByIdAndUpdate(session._id, { refreshToken });
+
+        res.status(200).json({ token, refreshToken, user, sessionId: session._id, sucess: true });
 
     } catch (error) {
         res.status(500).json({ error: error.message, sucess: false });
     }
 }
 
-const logutUser = async (req, res) => {
+const logoutUser = async (req, res) => {
     try {
+
+        const { logoutAll, sessionID } = req.body;
 
         const user = await User.findById(req.user.id);
         if (!user) return res.status(400).json({ message: "User does not exist", sucess: false });
 
-        await Session.updateMany(
-            { userID: req.user.id }, 
+        if (logoutAll) {
+            await Session.updateMany(
+                { userID: req.user.id },
+                { isValid: false, logoutTime: new Date(), lastActiveAt: new Date(), expiresAt: new Date() });
+        } else {
+            await Session.updateOne(
+            { _id: sessionID }, 
             { isValid: false, logoutTime: new Date(), lastActiveAt: new Date(), expiresAt: new Date()});
-        
-        res.status(200).json({ message: "User logged out successfully", sucess: true });
+        }
+
+        res.status(200).json({ message: `${logoutAll} ? "All sessions logged out" : "User logged out successfully"`, sucess: true });
 
     } catch (error) {
         res.status(500).json({ error: error.message, sucess: false });
@@ -85,7 +97,7 @@ const changePassword = async (req, res) => {
         if (isPasswordMatched) return res.status(400).json({ message: "New password cannot be same as old password", sucess: false });
 
         await User.findByIdAndUpdate(user._id, { password: await encryptPassword(password) });
-        
+
         res.status(200).json({ message: "Password changed successfully", sucess: true });
 
     } catch (error) {
@@ -93,4 +105,4 @@ const changePassword = async (req, res) => {
     }
 }
 
-module.exports = { registerUser, loginUser, logutUser, changePassword };
+module.exports = { registerUser, loginUser, logoutUser, changePassword };
