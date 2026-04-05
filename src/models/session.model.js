@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
-const sessionSchema = new mongoose.Schema({
-    userID: {
+const SessionSchema = new mongoose.Schema({
+    userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         required: true
@@ -27,4 +27,4 @@ const sessionSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
-module.exports = mongoose.model("Session", sessionSchema);
+module.exports = mongoose.model("Session", SessionSchema);

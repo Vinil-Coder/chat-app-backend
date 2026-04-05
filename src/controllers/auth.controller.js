@@ -11,16 +11,16 @@ const { generateRefreshToken, generateToken } = require("../utils/token-generato
 
 const registerUser = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
+        const { name, email, contact, password } = req.body;
 
         const user = await User.findOne({ email });
         if (user) return res.status(400).json({ message: "User already exists", sucess: false });
 
-        const newUser = await User.create({ name, email, password: await encryptPassword(password) });
+        const newUser = await User.create({ name, email, contact, password: await encryptPassword(password) });
 
-        await Profile.create({ user_id: newUser._id, fullName: newUser.name });
+        await Profile.create({ userId: newUser._id, fullName: newUser.name });
 
-        await Account.create({ user_id: newUser._id });
+        await Account.create({ userId: newUser._id });
 
         res.status(201).json({ message: "User registered successfully", sucess: true });
 
@@ -43,14 +43,14 @@ const loginUser = async (req, res) => {
 
         const session = await Session.create(
             {
-                userID: user._id,
+                userId: user._id,
                 userAgent: req.headers["user-agent"],
                 device: `${parser.browser.name} on ${parser.os.name}`,
                 ipAddress: req.headers["x-forwarded-for"]?.split(",")[0] || req.socket.remoteAddress || req.ip
             });
 
-        const token = generateToken({ id: user._id, name: user.name, email: user.email, sessionID: session._id });
-        const refreshToken = generateRefreshToken({ id: user._id, name: user.name, email: user.email, sessionID: session._id });
+        const token = generateToken({ id: user._id, name: user.name, email: user.email, contact: user.contact, sessionId: session._id });
+        const refreshToken = generateRefreshToken({ id: user._id, name: user.name, email: user.email, contact: user.contact, sessionId: session._id });
 
         await Session.findByIdAndUpdate(session._id, { refreshToken });
 

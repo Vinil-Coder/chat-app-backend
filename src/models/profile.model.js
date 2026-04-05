@@ -1,16 +1,10 @@
 const mongoose = require("mongoose");
 
-const profileSchema = new mongoose.Schema({
-    user_id: {
+const ProfileSchema = new mongoose.Schema({
+    userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         required: true,
-        unique: true
-    },
-    fullName: {
-        type: String,
-        required: true,
-        trim: true
     },
     gender: {
         type: String,
@@ -20,13 +14,17 @@ const profileSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
-    contactNumber: {
-        type: String,
-        trim: true
-    },
-    avatarUrl: {
+    avatar: {
         type: String,
         default: ''
+    },
+    bio: {
+        type: String,
+        default: ''
+    },
+    lastSeen: {
+        type: Date,
+        default: Date.now
     },
     githubUrl: {
         type: String,
@@ -38,4 +36,4 @@ const profileSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
-module.exports = mongoose.model("Profile", profileSchema);
+module.exports = mongoose.model("Profile", ProfileSchema);

@@ -2,15 +2,17 @@ const dotenv = require("dotenv");
 dotenv.config();
 const mongoose = require("mongoose");
 
-const userModel = require("./models/user.model");
-const profileModel = require("./models/profile.model");
-const accountModel = require("./models/account.model");
-const sessionModel = require("./models/session.model");
-const workspaceModel = require("./models/workspace.model");
-const chatModel = require("./models/chat.model");
-const memberShipModel = require("./models/membership.model");
-const messageModel = require("./models/message.model");
-const activityModel = require("./models/activity.model");
+const UserModel = require("./models/user.model");
+const ProfileModel = require("./models/profile.model");
+const AccountModel = require("./models/account.model");
+const SessionModel = require("./models/session.model");
+const inviteModel = require("./models/invite.model");
+const ContactModel = require("./models/contact.model");
+const ConversationModel = require("./models/conversation.model");
+const WorkspaceModel = require("./models/workspace.model");
+const WorkspaceMemberModel = require("./models/workspaceMember.model");
+const MessageModel = require("./models/message.model");
+const ActivityModel = require("./models/activity.model");
 
 module.exports = async () => {
     try {

@@ -1,20 +1,30 @@
 const mongoose = require("mongoose");
 
-const messageSchema = new mongoose.Schema({
-    chatId: {
+const MessageSchema = new mongoose.Schema({
+    conversationId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Chat'
+        ref: 'Conversation'
     },
     senderId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     },
     content: String,
+    messageType: {
+        type: String,
+        enum: ['text', 'image', 'video', 'audio', 'file'],
+        default: 'text'
+    },
     attachments: [String],
     readBy: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
-    }]
+    }],
+    isMessagePinned: Boolean,
+    isEdited: Boolean,
+    isDeleted: Boolean
 }, { timestamps: true });
 
-module.exports = mongoose.model("Message", messageSchema);
+MessageSchema.index({ conversationId: 1, createdAt: -1 });
+
+module.exports = mongoose.model("Message", MessageSchema);

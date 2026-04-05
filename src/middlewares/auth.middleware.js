@@ -11,7 +11,7 @@ const AuthMiddleware = async (req, res, next) => {
 
         const decodeToken = verifyToken(token);
 
-        const session = await Session.findById(decodeToken.sessionID);
+        const session = await Session.findById(decodeToken.sessionId);
         if (!session) return res.status(401).json({ message: "Session not found", success: false });
 
         if (!session.isValid) return res.status(401).json({ message: "Session expired", success: false });
