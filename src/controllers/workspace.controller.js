@@ -29,6 +29,14 @@ const createWorkspace = async (req, res) => {
       role: "admin"
     });
 
+    await Conversation.create({
+      type: "group",
+      name: workspace.name,
+      workspaceId: workspace._id,
+      members: [],
+      admins: [req.user.id]
+    });
+
     res.status(201).json({ success: true, workspace });
 
   } catch (err) {

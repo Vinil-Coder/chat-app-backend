@@ -34,7 +34,6 @@ const getMessages = async (req, res) => {
   }
 
   const messages = await Message.find(query)
-    .sort({ createdAt: -1 })
     .limit(20);
 
   res.json(messages);

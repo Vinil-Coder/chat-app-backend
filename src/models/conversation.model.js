@@ -7,7 +7,17 @@ const ConversationSchema = new mongoose.Schema({
         required: true,
         default: "direct"
     },
+    name: {
+        type: String,
+        trim: true
+    },
     members: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User"
+        }
+    ],
+    admins: [
         {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User"
