@@ -22,15 +22,8 @@ const initSocket = (server) => {
 
         /* ================= USER JOIN ================= */
         socket.on("join_user", (userId) => {
-            console.log("join_user event", userId);
-            socket.userId = userId;
-
-            onlineUsers.set(userId, socket.id);
             socket.join(userId);
-
-            console.log("Online users:", onlineUsers);
-
-            io.emit("user_online", userId);
+            console.log(`User ${userId} joined personal room`);
         });
 
         /* ================= JOIN CONVERSATION ================= */

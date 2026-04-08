@@ -10,11 +10,29 @@ const WorkspaceSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
+    status: {
+        type: String,
+        enum: ["active", "inactive"],
+        default: "active"   
+    },
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true
-    }
+    },
+    members: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        }
+    ],
+    admins: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        }
+    ],
+
 }, { timestamps: true });
 
 module.exports = mongoose.model("Workspace", WorkspaceSchema);

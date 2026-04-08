@@ -64,6 +64,7 @@ const loginService = async ({ email, password, userAgent, ip }) => {
     const refreshToken = generateRefreshToken(payload);
 
     await Session.findByIdAndUpdate(session._id, { refreshToken });
+    await User.findByIdAndUpdate(user._id, { isOnline: true });
 
     return { user, token, refreshToken, sessionId: session._id };
 };
@@ -83,6 +84,7 @@ const logoutService = async ({ userId, logoutAll, sessionID }) => {
 
     if (logoutAll) {
         await Session.updateMany({ userId }, update);
+        await User.findByIdAndUpdate(user._id, { isOnline: false });
     } else {
         await Session.updateOne({ _id: sessionID }, update);
     }

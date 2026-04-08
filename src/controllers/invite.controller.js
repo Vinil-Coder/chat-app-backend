@@ -6,7 +6,6 @@ const {
     getSentInvitesService,
     updateInviteService
 } = require("../services/invite.service");
-const Conversation = require("../models/conversation.model");
 
 // SEND INVITE
 const sendInvite = async (req, res) => {
@@ -16,7 +15,7 @@ const sendInvite = async (req, res) => {
             inviter: req.user
         });
 
-        res.json({ success: true, invite });
+        res.status(200).json({ success: true, message: "Invite sent successfully",  invite });
 
     } catch (error) {
         res.status(400).json({ success: false, message: error.message });
@@ -26,8 +25,10 @@ const sendInvite = async (req, res) => {
 // VERIFY
 const verifyInvite = async (req, res) => {
     try {
-        const data = await verifyInviteService(req.params.token);
-        res.json({ success: true, message: "Verified successfully", ...data });
+        await verifyInviteService(req.params.token);
+
+        res.status(200).json({ success: true, message: "Invite Verified successfully" });
+
     } catch (error) {
         res.status(400).json({ success: false, message: error.message });
     }
@@ -63,27 +64,10 @@ const getSentInvites = async (req, res) => {
     }
 };
 
-// UPDATE
-const updateInvite = async (req, res) => {
-    try {
-        await updateInviteService({
-            inviteId: req.params.inviteId,
-            status: req.params.status,
-            userId: req.user.id
-        });
-
-        res.json({ success: true, message: "Updated successfully" });
-
-    } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
-    }
-};
-
 module.exports = {
     sendInvite,
     verifyInvite,
     registerWithInvite,
     getReceivedInvites,
-    getSentInvites,
-    updateInvite
+    getSentInvites
 };

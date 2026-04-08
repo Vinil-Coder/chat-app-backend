@@ -1,6 +1,7 @@
 const User = require("../models/user.model");
 const Profile = require("../models/profile.model");
 const Account = require("../models/account.model");
+const { getUsersService } = require("../services/user.service");
 
 const getUser = async (req, res) => {
   try {
@@ -25,6 +26,19 @@ const getUser = async (req, res) => {
   }
 };
 
+const getRegisteredUsers = async (req, res) => {
+  try {
+
+    const users = await getUsersService(req.user.id);
+
+    res.status(200).json({ success: true, users });
+
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 module.exports = {
-  getUser
+  getUser,
+  getRegisteredUsers
 };

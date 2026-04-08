@@ -11,25 +11,19 @@ const ConversationSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
-    members: [
+    participants: [
         {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User"
         }
     ],
-    admins: [
-        {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "User"
-        }
-    ],
-    workspaceId: {
+    groupId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Workspace"
     },
     lastMessage: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "Message"
+        ref: "Message"  
     }
 }, { timestamps: true });
 

@@ -1,38 +1,32 @@
-const Conversation = require("../models/conversation.model");
+const {
+  createConversationService,
+  getConversationsService
+} = require("../services/conversation.service");
 
-const createGroupConversation = async (req, res) => {
+const createConversation = async (req, res) => {
   try {
-    const { name, members, workspaceId } = req.body;
+    const conversation = await createConversationService(req.body, req.user.id);
 
-    const conversation = await Conversation.create({
-      type: "group",
-      members,
-      workspaceId,
-      name
-    });
-
-    res.status(201).json({ conversation });
+    res.status(201).json({ success: true, conversation });
 
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ success: false, error: err.message });
   }
 };
 
-const getUserChats = async (req, res) => {
+const getConversations = async (req, res) => {
 
-    const userId = req.user.id;
+  try {
+    const conversations = await getConversationsService(req.user.id);
 
-    const conversations = await Conversation.find({
-        members: userId
-    })
-    .populate("members", "name email")
-    .populate("lastMessage")
-    .sort({ updatedAt: -1 });
+    res.status(200).json({ success: true, conversations });
 
-    res.json(conversations);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 };
 
 module.exports = {
-  createGroupConversation,
-  getUserChats
+  createConversation,
+  getConversations
 };

@@ -14,16 +14,6 @@ const InviteSchema = new mongoose.Schema({
         ref: "User",
         required: true
     },
-    workspaceId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Workspace",
-        required: true
-    },
-    role: {
-        type: String,
-        enum: ["member", "admin"],
-        default: "member"
-    },
     status: {
         type: String,
         enum: ["pending", "accepted", "rejected", "expired"],

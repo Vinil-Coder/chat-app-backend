@@ -7,7 +7,6 @@ const {
     sendInvite, 
     verifyInvite, 
     registerWithInvite, 
-    updateInvite, 
     getReceivedInvites,
     getSentInvites
 } = require("../controllers/invite.controller");
@@ -18,7 +17,5 @@ router.post("/register", registerWithInvite);
 
 router.get("/received", AuthMiddleware, getReceivedInvites);
 router.get("/sent", AuthMiddleware, getSentInvites);
-
-router.get("/:inviteId/:status", AuthMiddleware, updateInvite);
 
 module.exports = router;

@@ -8,8 +8,7 @@ const AccountModel = require("./models/account.model");
 const SessionModel = require("./models/session.model");
 const inviteModel = require("./models/invite.model");
 const ConversationModel = require("./models/conversation.model");
-const WorkspaceModel = require("./models/workspace.model");
-const WorkspaceMemberModel = require("./models/workspaceMember.model");
+const GroupModel = require("./models/group.model");
 const MessageModel = require("./models/message.model");
 const ActivityModel = require("./models/activity.model");
 

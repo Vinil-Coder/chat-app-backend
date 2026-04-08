@@ -24,6 +24,10 @@ const UserSchema = new mongoose.Schema({
         type: String,
         enum: ["Active", "Inactive", "Blocked"],
         default: "Active"
+    },
+    isOnline: {
+        type: Boolean,
+        default: false
     }
 }, { timestamps: true });
 
