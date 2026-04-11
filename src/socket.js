@@ -56,7 +56,7 @@ const initSocket = (server) => {
         console.log("Connected:", socket.id);
 
         onlineUsers.set(socket.user.id, socket.id);
-    
+
         /* ================= JOIN CONVERSATION ================= */
         socket.on("join_conversation", async ({ conversationId }) => {
 
@@ -70,11 +70,45 @@ const initSocket = (server) => {
         /* ================= SEND MESSAGE ================= */
         socket.on("send_message", async (message) => {
 
-            const res = await Message.create(message);
+            const res = await Message.create({
+                ...message,
+                deliveredTo: [],
+                readBy: []
+            });
 
-            await Conversation.findByIdAndUpdate(message.conversationId, { lastMessage: res._id })
+            await Conversation.findByIdAndUpdate(message.conversationId, {
+                lastMessage: res._id
+            });
 
             io.to(message.conversationId).emit("receive_message", res);
+        });
+
+        /* ================= ON MESSAGE DELIVERED ================= */
+        socket.on("message_delivered", async ({ messageId, userId }) => {
+            await Message.findByIdAndUpdate(messageId, {
+                $addToSet: { deliveredTo: userId }
+            });
+        });
+
+        /* ================= ON MESSAGE READ ================= */
+        socket.on("mark_read", async ({ conversationId, userId }) => {
+
+            const messages = await Message.find({
+                conversationId,
+                senderId: { $ne: userId }
+            });
+
+            const ids = messages.map(m => m._id);
+
+            await Message.updateMany(
+                { _id: { $in: ids } },
+                { $addToSet: { readBy: userId } }
+            );
+
+            io.to(conversationId).emit("messages_read", {
+                conversationId,
+                userId
+            });
         });
 
         /* ================= TYPING START ================= */
@@ -82,17 +116,17 @@ const initSocket = (server) => {
 
             const convo = await Conversation.findById(conversationId);
 
-            const otherUsers = convo.participants.map(p => p.toString()).filter(id => id !== socket.user.id);
-
-            console.log('Users', onlineUsers);
+            const otherUsers = convo.participants
+                .map(p => p.toString())
+                .filter(id => id !== socket.user.id);
 
             otherUsers.forEach((uid) => {
                 const socketId = onlineUsers.get(uid);
-                console.log('SocketId', socketId, uid);
 
                 if (socketId) {
-                    socket.to(socketId).emit("is_typing", {
+                    io.to(socketId).emit("is_typing", {
                         conversationId,
+                        userId: socket.user.id,
                         typing: true
                     });
                 }
@@ -104,7 +138,9 @@ const initSocket = (server) => {
 
             const convo = await Conversation.findById(conversationId);
 
-            const otherUsers = convo.participants.filter(id => id !== socket.user.id);
+            const otherUsers = convo.participants
+                .map(p => p.toString())
+                .filter(id => id !== socket.user.id);
 
             otherUsers.forEach((uid) => {
                 const socketId = onlineUsers.get(uid);
@@ -112,6 +148,7 @@ const initSocket = (server) => {
                 if (socketId) {
                     io.to(socketId).emit("is_typing", {
                         conversationId,
+                        userId: socket.user.id,
                         typing: false
                     });
                 }

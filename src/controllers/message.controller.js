@@ -14,7 +14,7 @@ const getMessages = async (req, res) => {
   const messages = await Message.find(query)
     .limit(20);
 
-  res.json(messages);
+  res.status(200).json({ status: true, messages });
 };
 
 module.exports = {
