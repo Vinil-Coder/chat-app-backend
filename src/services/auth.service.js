@@ -11,7 +11,7 @@ const { generateRefreshToken, generateToken } = require("../utils/token-generato
 const registerService = async ({ name, email, contact, password }) => {
 
     const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ message: "User already exists", success: false });
+    if (existingUser) throw new Error("User already exists");
 
     const hashedPassword = await encryptPassword(password);
 
@@ -38,10 +38,10 @@ const registerService = async ({ name, email, contact, password }) => {
 const loginService = async ({ email, password, userAgent, ip }) => {
 
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: "User not exists", success: false });
+    if (!user) throw new Error("User not exists");
 
     const isValid = await decryptyPassword(password, user.password);
-    if (!isValid) return res.status(400).json({ message: "Invalid password", success: false });
+    if (!isValid) throw new Error("Invalid password")
 
     const parser = new UAParser(userAgent).getResult();
 
@@ -57,7 +57,6 @@ const loginService = async ({ email, password, userAgent, ip }) => {
         name: user.name,
         email: user.email,
         contact: user.contact,
-        sessionId: session._id
     };
 
     const token = generateToken(payload);
@@ -66,14 +65,14 @@ const loginService = async ({ email, password, userAgent, ip }) => {
     await Session.findByIdAndUpdate(session._id, { refreshToken });
     await User.findByIdAndUpdate(user._id, { isOnline: true });
 
-    return { user, token, refreshToken, sessionId: session._id };
+    return { token, refreshToken, user: payload };
 };
 
 // LOGOUT
-const logoutService = async ({ userId, logoutAll, sessionID }) => {
+const logoutService = async ({ userId }) => {
 
     const user = await User.findById(userId);
-    if (!user) return res.status(400).json({ message: "User not exists", success: false });
+    if (!user) throw new Error("User not exists");
 
     const update = {
         isValid: false,
@@ -82,12 +81,8 @@ const logoutService = async ({ userId, logoutAll, sessionID }) => {
         expiresAt: new Date()
     };
 
-    if (logoutAll) {
-        await Session.updateMany({ userId }, update);
-        await User.findByIdAndUpdate(user._id, { isOnline: false });
-    } else {
-        await Session.updateOne({ _id: sessionID }, update);
-    }
+    await Session.updateMany({ userId }, update);
+    await User.findByIdAndUpdate(user._id, { isOnline: false });
 
     return true;
 };

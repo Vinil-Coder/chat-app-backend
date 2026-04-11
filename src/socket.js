@@ -1,6 +1,8 @@
 const socketIO = require("socket.io");
 const Message = require("./models/message.model");
 const Conversation = require("./models/conversation.model");
+const cookieParser = require('cookie-parser');
+const { verifyToken } = require("./utils/token-generator");
 
 let io;
 
@@ -9,124 +11,119 @@ const onlineUsers = new Map();
 const initSocket = (server) => {
     io = socketIO(server, {
         cors: {
-            origin: "http://localhost:4200", // Angular app
+            origin: "http://localhost:4200",
             methods: ["GET", "POST"],
             credentials: true
         },
         transports: ["websocket", "polling"]
     });
 
+    const wrap = (middleware) => (socket, next) =>
+        middleware(socket.request, {}, next);
+
+    io.use(wrap(cookieParser()));
+
+    io.use((socket, next) => {
+        try {
+            const cookies = socket.request.cookies;
+
+            if (!cookies) {
+                return next(new Error("No cookies found"));
+            }
+
+            const token = cookies.token;
+
+            if (!token) {
+                return next(new Error("Unauthorized"));
+            }
+
+            // Verify token
+            const decoded = verifyToken(token);
+
+            // Attach user to socket
+            socket.user = decoded;
+
+            next();
+
+        } catch (err) {
+            console.error("Socket auth error:", err.message);
+            next(new Error("Authentication failed"));
+        }
+    });
+
     io.on("connection", (socket) => {
 
         console.log("Connected:", socket.id);
 
-        /* ================= USER JOIN ================= */
-        socket.on("join_user", (userId) => {
-            socket.join(userId);
-            console.log(`User ${userId} joined personal room`);
-        });
-
+        onlineUsers.set(socket.user.id, socket.id);
+    
         /* ================= JOIN CONVERSATION ================= */
-        socket.on("join_conversation", async ({ conversationId, userId }) => {
+        socket.on("join_conversation", async ({ conversationId }) => {
 
             const convo = await Conversation.findById(conversationId);
 
-            if (!convo.members.includes(userId)) return; // SECURITY
+            if (!convo.participants.includes(socket.user.id)) return; // SECURITY
 
             socket.join(conversationId);
         });
 
         /* ================= SEND MESSAGE ================= */
-        socket.on("send_message", async (data) => {
+        socket.on("send_message", async (message) => {
 
-            console.log('send_message event data', data);
+            const res = await Message.create(message);
 
-            const { senderId, receiverId, conversationId, content } = data;
+            await Conversation.findByIdAndUpdate(message.conversationId, { lastMessage: res._id })
 
-            let convo;
+            io.to(message.conversationId).emit("receive_message", res);
+        });
 
-            /* ===== DIRECT CHAT ===== */
-            if (receiverId) {
+        /* ================= TYPING START ================= */
+        socket.on("typing_starts", async ({ conversationId }) => {
 
-                convo = await Conversation.findOne({
-                    type: "direct",
-                    members: { $all: [senderId, receiverId], $size: 2 }
-                });
+            const convo = await Conversation.findById(conversationId);
 
-                if (!convo) {
-                    convo = await Conversation.create({
-                        type: "direct",
-                        members: [senderId, receiverId]
+            const otherUsers = convo.participants.map(p => p.toString()).filter(id => id !== socket.user.id);
+
+            console.log('Users', onlineUsers);
+
+            otherUsers.forEach((uid) => {
+                const socketId = onlineUsers.get(uid);
+                console.log('SocketId', socketId, uid);
+
+                if (socketId) {
+                    socket.to(socketId).emit("is_typing", {
+                        conversationId,
+                        typing: true
                     });
                 }
-
-            }
-
-            /* ===== GROUP CHAT ===== */
-            if (conversationId) {
-                convo = await Conversation.findById(conversationId);
-            }
-
-            const message = await Message.create({
-                conversationId: convo._id,
-                senderId,
-                content,
-                deliveredTo: [senderId]
-            });
-
-            io.to(convo._id.toString()).emit("receive_message", message);
-
-            await Conversation.findByIdAndUpdate(convo._id, {
-                lastMessage: message._id
             });
         });
 
-        /* ================= MESSAGE DELIVERED ================= */
-        socket.on("message_delivered", async ({ messageId, userId }) => {
+        /* ================= TYPING STOP ================= */
+        socket.on("typing_stops", async ({ conversationId }) => {
 
-            await Message.findByIdAndUpdate(messageId, {
-                $addToSet: { deliveredTo: userId }
+            const convo = await Conversation.findById(conversationId);
+
+            const otherUsers = convo.participants.filter(id => id !== socket.user.id);
+
+            otherUsers.forEach((uid) => {
+                const socketId = onlineUsers.get(uid);
+
+                if (socketId) {
+                    io.to(socketId).emit("is_typing", {
+                        conversationId,
+                        typing: false
+                    });
+                }
             });
-
-            const msg = await Message.findById(messageId);
-
-            io.to(msg.conversationId).emit("message_delivered", {
-                messageId,
-                userId
-            });
-        });
-
-        /* ================= MESSAGE READ ================= */
-        socket.on("message_read", async ({ messageId, userId }) => {
-
-            await Message.findByIdAndUpdate(messageId, {
-                $addToSet: { readBy: userId }
-            });
-
-            const msg = await Message.findById(messageId);
-
-            io.to(msg.conversationId).emit("message_read", {
-                messageId,
-                userId
-            });
-        });
-
-        /* ================= TYPING ================= */
-        socket.on("typing", ({ conversationId, userId }) => {
-            console.log("typing event", { conversationId, userId });
-            socket.to(conversationId).emit("typing", { userId });
-        });
-
-        socket.on("stop_typing", ({ conversationId, userId }) => {
-            socket.to(conversationId).emit("stop_typing", { userId });
         });
 
         /* ================= DISCONNECT ================= */
         socket.on("disconnect", () => {
 
-            if (socket.userId) {
-                onlineUsers.delete(socket.userId);
-                io.emit("user_offline", socket.userId);
+            if (socket.user.id) {
+                onlineUsers.delete(socket.user.id);
+                io.emit("user_offline", socket.user.id);
             }
 
             console.log("Disconnected:", socket.id);

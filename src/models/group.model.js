@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const WorkspaceSchema = new mongoose.Schema({
+const GroupSchema = new mongoose.Schema({
     name: {
         type: String,
         required: true,
@@ -35,4 +35,4 @@ const WorkspaceSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
-module.exports = mongoose.model("Workspace", WorkspaceSchema);
+module.exports = mongoose.model("Group", GroupSchema);

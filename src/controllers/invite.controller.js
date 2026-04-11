@@ -3,8 +3,7 @@ const {
     verifyInviteService,
     registerWithInviteService,
     getReceivedInvitesService,
-    getSentInvitesService,
-    updateInviteService
+    getSentInvitesService
 } = require("../services/invite.service");
 
 // SEND INVITE

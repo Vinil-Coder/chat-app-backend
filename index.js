@@ -8,7 +8,7 @@ const { initSocket } = require("./src/socket");
 
 const server = http.createServer(app);
 
-// initSocket(server);
+initSocket(server);
 
 server.listen(process.env.PORT || 5000, async () => {
     await mongoConnection();
