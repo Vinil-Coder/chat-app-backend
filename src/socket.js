@@ -1,14 +1,237 @@
+// socket.js
+
 const socketIO = require("socket.io");
-const Message = require("./models/message.model");
-const Conversation = require("./models/conversation.model");
-const cookieParser = require('cookie-parser');
+const cookieParser = require("cookie-parser");
 const { verifyToken } = require("./utils/token-generator");
 
-let io;
+const Message = require("./models/message.model");
+const Conversation = require("./models/conversation.model");
 
+let io;
 const onlineUsers = new Map();
 
+/* ================= MIDDLEWARE ================= */
+
+const wrap = (middleware) => (socket, next) =>
+    middleware(socket.request, {}, next);
+
+const socketAuth = (socket, next) => {
+    try {
+        const token = socket.request.cookies?.token;
+        if (!token) return next(new Error("Unauthorized"));
+
+        const decoded = verifyToken(token);
+        socket.user = decoded;
+
+        next();
+    } catch (err) {
+        console.error("Socket auth error:", err.message);
+        next(new Error("Authentication failed"));
+    }
+};
+
+/* ================= HELPERS ================= */
+
+const getSocketId = (userId) => onlineUsers.get(userId.toString());
+
+const isUserOnline = (userId) => onlineUsers.has(userId);
+
+const emitToUser = (userId, event, payload) => {
+    const socketId = getSocketId(userId);
+    if (socketId) io.to(socketId).emit(event, payload);
+};
+
+const emitToUsers = (userIds, event, payload) => {
+    userIds.forEach(uid => emitToUser(uid, event, payload));
+};
+
+/* ================= MESSAGE HELPERS ================= */
+
+// Mark unread messages delivered when user comes online
+const markUnreadMessagesDelivered = async (userId) => {
+
+    const messages = await Message.find({
+        receiverIds: userId,
+        senderId: { $ne: userId },
+        deliversTo: { $ne: userId }
+    })
+
+    const ids = messages.map(m => m._id);
+
+    if (!ids.length) return [];
+
+    const result = await Message.updateMany(
+        { _id: { $in: ids } },
+        {
+            $addToSet: { deliversTo: userId },
+            status: "delivered"
+        }
+    );
+
+    if (result.modifiedCount === 0) return [];
+
+    return messages;
+};
+
+// Mark messages as read
+const markMessagesRead = async (conversationId, userId) => {
+
+    const messages = await Message.find({
+        conversationId,
+        readBy: { $ne: userId }
+    })
+
+    const ids = messages.map(m => m._id);
+
+    if (!ids.length) return [];
+
+    const result = await Message.updateMany(
+        { _id: { $in: ids } },
+        {
+            $addToSet: { readBy: userId },
+            status: "read",
+            isRead: true
+        }
+    );
+
+    if (result.modifiedCount === 0) return [];
+
+    return messages;
+};
+
+/* ================= EVENT HANDLERS ================= */
+
+const handleJoinUser = async (socket) => {
+    const userId = socket.user.id;
+
+    socket.join(userId);
+    onlineUsers.set(userId, socket.id);
+
+    console.log("Online Users:", onlineUsers);
+
+    const users = [...onlineUsers.keys()];
+
+    onlineUsers.forEach((socketId) => {
+        io.to(socketId).emit("user_online", users);
+    });
+
+    console.log('users emitted', users);
+
+    const updatedMessages = await markUnreadMessagesDelivered(userId);
+
+    const senderIds = [
+        ...new Set(updatedMessages.map(msg => msg.senderId.toString()))
+    ];
+
+    emitToUsers(senderIds, "message_delivered", {
+        ids: updatedMessages.map(m => m._id),
+        userId
+    });
+};
+
+const handleJoinConversation = async (socket, { conversationId }) => {
+    const convo = await Conversation.findById(conversationId);
+    if (!convo) return;
+
+    if (!convo.participants.map(p => p.toString()).includes(socket.user.id)) {
+        return;
+    }
+
+    socket.join(conversationId);
+};
+
+const handleSendMessage = async (message) => {
+
+    // create message
+    const newMessage = await Message.create({
+        ...message,
+        deliversTo: [],   // only online users
+        readBy: []
+    });
+
+    // find online users only
+    const onlineUsers = message.receiverIds.filter(userId => isUserOnline(userId));
+
+    // emit only to online users
+    emitToUsers(onlineUsers, "receive_message", newMessage);
+
+    // update conversation
+    await Conversation.findByIdAndUpdate(message.conversationId, {
+        lastMessage: newMessage._id
+    });
+};
+
+const handleDeliverMessage = async (socket, messageId) => {
+    const userId = socket.user.id;
+
+    const message = await Message.findById(messageId);
+
+    // update message
+    await Message.findByIdAndUpdate(
+        messageId,
+        {
+            $addToSet: { deliversTo: userId },
+            status: "delivered",
+        }
+    )
+
+    emitToUser(message.senderId, "message_delivered", {
+        ids: [message._id],
+        userId
+    });
+};
+
+const handleReadMessage = async (socket, conversationId) => {
+    const userId = socket.user?.id;
+
+    const updatedMessages = await markMessagesRead(conversationId, userId);
+
+    const senderIds = [
+        ...new Set(updatedMessages.map(msg => msg.receiverIds.map(id => id.toString())))
+    ];
+
+    emitToUsers(senderIds, "messages_read", {
+        ids: updatedMessages.map(m => m._id),
+        userId
+    });
+};
+
+const handleTyping = async (socket, { conversationId, typing }) => {
+    
+    const convo = await Conversation.findById(conversationId);
+    if (!convo) return;
+
+    // Eliminating the current user who is typing
+    const otherUsers = convo.participants
+        .map(p => p.toString())
+        .filter(id => id !== socket.user.id);
+
+    emitToUsers(otherUsers, "is_typing", {
+        conversationId,
+        typing
+    });
+};
+
+const handleDisconnect = (socket) => {
+    const userId = socket.user?.id;
+
+    if (userId) {
+        onlineUsers.delete(userId);
+
+        const users = [...onlineUsers.keys()];
+
+        onlineUsers.forEach((socketId) => {
+            io.to(socketId).emit("user_offline", users);
+        });
+    }
+
+    console.log("Disconnected:", socket.id);
+};
+
+/* ================= INIT SOCKET ================= */
+
 const initSocket = (server) => {
+
     io = socketIO(server, {
         cors: {
             origin: "http://localhost:4200",
@@ -18,153 +241,42 @@ const initSocket = (server) => {
         transports: ["websocket", "polling"]
     });
 
-    const wrap = (middleware) => (socket, next) =>
-        middleware(socket.request, {}, next);
-
     io.use(wrap(cookieParser()));
-
-    io.use((socket, next) => {
-        try {
-            const cookies = socket.request.cookies;
-
-            if (!cookies) {
-                return next(new Error("No cookies found"));
-            }
-
-            const token = cookies.token;
-
-            if (!token) {
-                return next(new Error("Unauthorized"));
-            }
-
-            // Verify token
-            const decoded = verifyToken(token);
-
-            // Attach user to socket
-            socket.user = decoded;
-
-            next();
-
-        } catch (err) {
-            console.error("Socket auth error:", err.message);
-            next(new Error("Authentication failed"));
-        }
-    });
+    io.use(socketAuth);
 
     io.on("connection", (socket) => {
 
         console.log("Connected:", socket.id);
 
-        onlineUsers.set(socket.user.id, socket.id);
+        socket.on("join_user", () => handleJoinUser(socket));
 
-        /* ================= JOIN CONVERSATION ================= */
-        socket.on("join_conversation", async ({ conversationId }) => {
+        socket.on("join_conversation", (data) =>
+            handleJoinConversation(socket, data)
+        );
 
-            const convo = await Conversation.findById(conversationId);
+        socket.on("send_message", (message) =>
+            handleSendMessage(message)
+        );
 
-            if (!convo.participants.includes(socket.user.id)) return; // SECURITY
+        socket.on("deliver_message", (messageId) =>
+            handleDeliverMessage(socket, messageId)
+        );
 
-            socket.join(conversationId);
-        });
+        socket.on("read_message", (data) =>
+            handleReadMessage(socket, data)
+        );
 
-        /* ================= SEND MESSAGE ================= */
-        socket.on("send_message", async (message) => {
+        socket.on("typing_starts", (conversationId) =>
+            handleTyping(socket, { conversationId, typing: true })
+        );
 
-            const res = await Message.create({
-                ...message,
-                deliveredTo: [],
-                readBy: []
-            });
+        socket.on("typing_stops", (conversationId) =>
+            handleTyping(socket, { conversationId, typing: false })
+        );
 
-            await Conversation.findByIdAndUpdate(message.conversationId, {
-                lastMessage: res._id
-            });
-
-            io.to(message.conversationId).emit("receive_message", res);
-        });
-
-        /* ================= ON MESSAGE DELIVERED ================= */
-        socket.on("message_delivered", async ({ messageId, userId }) => {
-            await Message.findByIdAndUpdate(messageId, {
-                $addToSet: { deliveredTo: userId }
-            });
-        });
-
-        /* ================= ON MESSAGE READ ================= */
-        socket.on("mark_read", async ({ conversationId, userId }) => {
-
-            const messages = await Message.find({
-                conversationId,
-                senderId: { $ne: userId }
-            });
-
-            const ids = messages.map(m => m._id);
-
-            await Message.updateMany(
-                { _id: { $in: ids } },
-                { $addToSet: { readBy: userId } }
-            );
-
-            io.to(conversationId).emit("messages_read", {
-                conversationId,
-                userId
-            });
-        });
-
-        /* ================= TYPING START ================= */
-        socket.on("typing_starts", async ({ conversationId }) => {
-
-            const convo = await Conversation.findById(conversationId);
-
-            const otherUsers = convo.participants
-                .map(p => p.toString())
-                .filter(id => id !== socket.user.id);
-
-            otherUsers.forEach((uid) => {
-                const socketId = onlineUsers.get(uid);
-
-                if (socketId) {
-                    io.to(socketId).emit("is_typing", {
-                        conversationId,
-                        userId: socket.user.id,
-                        typing: true
-                    });
-                }
-            });
-        });
-
-        /* ================= TYPING STOP ================= */
-        socket.on("typing_stops", async ({ conversationId }) => {
-
-            const convo = await Conversation.findById(conversationId);
-
-            const otherUsers = convo.participants
-                .map(p => p.toString())
-                .filter(id => id !== socket.user.id);
-
-            otherUsers.forEach((uid) => {
-                const socketId = onlineUsers.get(uid);
-
-                if (socketId) {
-                    io.to(socketId).emit("is_typing", {
-                        conversationId,
-                        userId: socket.user.id,
-                        typing: false
-                    });
-                }
-            });
-        });
-
-        /* ================= DISCONNECT ================= */
-        socket.on("disconnect", () => {
-
-            if (socket.user.id) {
-                onlineUsers.delete(socket.user.id);
-                io.emit("user_offline", socket.user.id);
-            }
-
-            console.log("Disconnected:", socket.id);
-        });
+        socket.on("disconnect", () =>
+            handleDisconnect(socket)
+        );
 
     });
 };

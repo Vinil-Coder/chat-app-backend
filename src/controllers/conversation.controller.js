@@ -10,7 +10,7 @@ const createConversation = async (req, res) => {
     res.status(201).json({ success: true, conversation });
 
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
@@ -22,7 +22,7 @@ const getConversations = async (req, res) => {
     res.status(200).json({ success: true, conversations });
 
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 

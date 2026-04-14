@@ -7,32 +7,35 @@ const MessageSchema = new mongoose.Schema({
         ref: 'Conversation',
         index: true
     },
-
     senderId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     },
-
     content: String,
-
     messageType: {
         type: String,
         enum: ['text', 'image', 'video', 'audio', 'file'],
         default: 'text'
     },
-
     attachments: [String],
-
-    deliveredTo: [{
+    receiverIds: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     }],
-
+    deliversTo: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }],
     readBy: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     }],
-
+    status: {
+        type: String,
+        enum: ['pending', 'sent', 'delivered', 'read'],
+        default: 'sent'
+    },
+    isRead: { type: Boolean, default: false },
     isEdited: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
     isPinned: { type: Boolean, default: false }
