@@ -38,7 +38,7 @@ const sendInviteService = async ({ email, contact, inviter }) => {
 
     const subject = `🚀 You're invited to join on Chat App`;
 
-    // await sendEmail(email, subject, generateInviteHtmlTemplate(inviter.name, workspace.name, inviteLink));
+    await sendEmail(email, subject, generateInviteHtmlTemplate(inviter.name, inviteLink));
 
     return invite;
 };

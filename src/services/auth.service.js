@@ -90,11 +90,11 @@ const logoutService = async ({ userId }) => {
 // CHANGE PASSWORD
 const changePasswordService = async ({ email, password }) => {
 
-    const user = await User.findOne(email);
-    if (!user) return res.status(400).json({ message: "Email not exists", success: false });
+    const user = await User.findOne({ email });
+    if (!user) throw new Error("User not exists");
 
     const isSame = await decryptyPassword(password, user.password);
-    if (isSame) return res.status(400).json({ message: "New password cannot be same as old password", success: false });
+    if (isSame) throw new Error("New password cannot be same as old password");
 
     const hashed = await encryptPassword(password);
 

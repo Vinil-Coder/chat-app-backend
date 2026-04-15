@@ -1,5 +1,5 @@
 
-const generateInviteHtmlTemplate = (inviterName, workspaceName, inviteLink) => {
+const generateInviteHtmlTemplate = (inviterName, inviteLink) => {
     const inviteHtml = 
         `
         <div style="font-family: Arial, sans-serif; background:#f6f9fc; padding:40px 0;">
@@ -20,7 +20,7 @@ const generateInviteHtmlTemplate = (inviterName, workspaceName, inviteLink) => {
             </p>
 
             <p style="font-size:16px;">
-                ${inviterName} has invited you to join the workspace <strong>${workspaceName}</strong>.
+                ${inviterName} has invited you to join</strong>.
             </p>
 
             <p style="font-size:15px; color:#555;">

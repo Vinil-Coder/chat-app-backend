@@ -119,9 +119,9 @@ const handleJoinUser = async (socket) => {
 
     const updatedMessages = await markUnreadMessagesDelivered(userId);
 
-    const senderIds = [
-        ...new Set(updatedMessages.map(msg => msg.senderId.toString()))
-    ];
+    const senderIds = [...new Set(
+        updatedMessages.flatMap(m => m.receiverIds.map(String))
+    )];
 
     emitToUsers(senderIds, "message_delivered", {
         ids: updatedMessages.map(m => m._id),
@@ -164,8 +164,6 @@ const handleSendMessage = async (message) => {
 const handleDeliverMessage = async (socket, messageId) => {
     const userId = socket.user.id;
 
-    const message = await Message.findById(messageId);
-
     // update message
     await Message.findByIdAndUpdate(
         messageId,
@@ -175,7 +173,11 @@ const handleDeliverMessage = async (socket, messageId) => {
         }
     )
 
-    emitToUser(message.senderId, "message_delivered", {
+    const message = await Message.findById(messageId);
+    if (!message) return;
+
+    // emit to sender
+    emitToUsers(message.receiverIds, "message_delivered", {
         ids: [message._id],
         userId
     });
@@ -187,8 +189,10 @@ const handleReadMessage = async (socket, conversationId) => {
     const updatedMessages = await markMessagesRead(conversationId, userId);
 
     const senderIds = [
-        ...new Set(updatedMessages.map(msg => msg.receiverIds.map(id => id.toString())))
+        ...(new Set(updatedMessages.flatMap(msg => msg.receiverIds.map(id => id.toString()))))
     ];
+
+    console.log('senderIds', senderIds, updatedMessages);
 
     emitToUsers(senderIds, "messages_read", {
         ids: updatedMessages.map(m => m._id),
@@ -197,7 +201,7 @@ const handleReadMessage = async (socket, conversationId) => {
 };
 
 const handleTyping = async (socket, { conversationId, typing }) => {
-    
+
     const convo = await Conversation.findById(conversationId);
     if (!convo) return;
 
